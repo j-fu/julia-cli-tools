@@ -1,0 +1,182 @@
+#!/bin/sh
+# -*-Julia-*-
+#=
+export LC_NUMERIC=C
+jlversion=""
+if [[ "$1" == "+"* ]] ; then 
+   jlversion=$1
+   shift
+fi
+exec julia $jlversion --startup-file=no "$0" "$@"
+=#
+
+using ArgParse
+using Pluto
+using Pkg
+import NetworkOptions
+
+"""
+    changetitle(title) 
+
+Change title of terminal window
+"""
+changetitle(title) = print("\033]0;$title\007")
+
+"""
+    force_update_notebook_environment(notebook)
+
+Forced update of notebook environment to all newest versions of the packages.
+`Pluto.update_notebook_environment(notebook)` heeds
+the compat entries in the Project.toml and thus seems to do nothing.
+"""
+function force_update_notebook_environment(notebook)
+    # cache the current environment
+    thisproject=Pkg.project().path
+
+    @info "Force updating packages in $(notebook):"
+
+    tmp=mktempdir()
+    tmpjl=joinpath(tmp,"tmp.jl")
+
+    cp(notebook,"$(notebook).bak",force=true)
+    @info "Created backup in $(notebook).bak"
+    cp(notebook,tmpjl,force=true)
+
+    # After this, notebook env + curent env are in sync
+    Pluto.activate_notebook_environment(tmpjl)
+
+    # Get list of current dependencies and their UUIDs:
+    pkgs=[PackageSpec(uuid=v) for (k,v) in Pkg.project().dependencies]
+
+    # Remove and re-add packages, thus ignoring compat
+    if length(pkgs) >0
+        Pkg.rm(pkgs)
+        sleep(1)
+        Pkg.add(pkgs)
+        # let the environments sync
+        sleep(1)
+    end
+    
+    # Sets compat to the current versions
+    Pluto.update_notebook_environment(tmpjl)
+    @info "Updating of  $(notebook) done\n"
+    sleep(1)
+
+    cp(tmpjl,notebook,force=true)
+
+    # Re-activate the current environment
+    Pkg.activate(thisproject)
+end
+
+"""
+    upgrade_notebook_manifest(notebook)
+
+Upgrade manifest in notebook to new version of Manifest format.
+This was needed for the transition from Julia 1.6 to 1.7, so perhaps
+not needed in the moment.
+"""
+function upgrade_notebook_manifest(notebook)
+    # cache the current environment
+    thisproject=Pkg.project().path
+
+    @info "Upgrading manifest in $(notebook):"
+
+    tmp=mktempdir()
+    tmpjl=joinpath(tmp,"tmp.jl")
+
+    cp(notebook,tmpjl,force=true)
+
+    # After this, notebook env + curent env are in sync
+    Pluto.activate_notebook_environment(tmpjl)
+
+    Pkg.upgrade_manifest()
+    
+    # Sets compat to the current versions
+    Pluto.update_notebook_environment(tmpjl)
+    @info "Updating of manifest in $(notebook) done\n"
+    sleep(1)
+
+    cp(tmpjl,notebook,force=true)
+
+    # Re-activate the current environment
+    Pkg.activate(thisproject)
+end
+
+
+function main(args)
+
+    ENV["JULIA_SSL_CA_ROOTS_PATH"] = NetworkOptions.bundled_ca_roots()
+
+
+
+    settings = ArgParseSettings()
+    settings.description = "Start a pluto server in current directory"
+    settings.commands_are_required = false
+    settings.add_version = true
+    add_arg_table(settings,
+                  "notebook", Dict(:help => "Notebook to run",:required => true),
+                  ["--no-browser", "-b"],   Dict(:help => "Don't launch browser",:action => :store_true),
+                  ["--pkg-offline"],  Dict(:help => "Use offline Pkg",:action => :store_true),
+                  ["--port"],   Dict(:help => "Port to be used",:arg_type=> Int),
+                  ["--title"],   Dict(:help => "Set terminal window title to notebook name", :action => :store_true),
+                  ["--no-autoreload"],   Dict(:help => "Don't  run notebook with `auto_reload_from_file=true",:action => :store_true),
+                  ["--no-develop"],   Dict(:help => "Don't set PKG_DEVELOP",:action => :store_true),
+                  ["--project"],   Dict(:help => "Evironment directory passed to nootebook as `ENV[PLUTO_PROJECT]`", :arg_type=>String),
+                  ["--update-all"],   Dict(:help => "Update all packges to their respective newest versions and update Julia to the version used to call pluto",:action => :store_true),
+                  ["--upgrade-manifest"],   Dict(:help => "Call Pkg.upgrade_manifest() on notebook environment",:action => :store_true),
+                  )
+
+    parsed_args=parse_args(args, settings)
+    
+    notebook=parsed_args["notebook"]
+    port=parsed_args["port"]
+    
+    if parsed_args["pkg-offline"]
+        ENV["JULIA_PKG_OFFLINE"]="true"
+    end
+
+    if !parsed_args["no-develop"]
+        ENV["PLUTO_DEVELOP"]="true"
+    end
+    
+    
+    project=parsed_args["project"]
+    if !isnothing(project)
+        if isdir(project)
+            ENV["PLUTO_PROJECT"]=abspath(project)
+            @info """PLUTO_PROJECT=$(abspath(project))"""
+        else
+            println("no such project: $project")
+            sleep(2)
+            error("no such project: $project")
+        end
+    end
+    
+    sysimagepath=joinpath(Sys.BINDIR,"..","lib","sysimage.so")
+    sysimage = isfile(sysimagepath) ? sysimagepath : nothing
+    
+    #Pluto.PkgCompat._updated_registries_compat[]=true
+
+    if parsed_args["update-all"]
+        force_update_notebook_environment(notebook)
+    elseif parsed_args["upgrade-manifest"]
+        upgrade_notebook_manifest(notebook)
+    else
+        if isfile(notebook)
+            if parsed_args["title"]  
+                changetitle(basename(notebook))
+            end
+            Pluto.run(;notebook,
+                      launch_browser=!parsed_args["no-browser"],
+                      auto_reload_from_file=!parsed_args["no-autoreload"],
+                      port,
+                      sysimage=sysimage)
+        else
+            error("Notebook $notebook not found")
+        end
+    end
+
+    
+end
+    
+main(ARGS)
