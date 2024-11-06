@@ -8,7 +8,8 @@ They need the following packages in the global environment:
 - Pluto
 - NetworkOptions
 - JuliaFormatter
-  
+- Runic  
+
 ## pluto
 
 Script to start or manage pluto notebooks
@@ -32,5 +33,11 @@ Examples:
 
 JuliaFormatter looks for [.JuliaFormatter.toml](https://domluna.github.io/JuliaFormatter.jl/stable/config/) in the location of the file being formatted, and searching up the file tree until a config file is (or isn't) found.
 
+## runic
+Script to format Julia code using the new configuration-less formatter [Runic.jl](https://github.com/fredrikekre/Runic.jl).
+See also the [Julia Discourse](https://discourse.julialang.org/t/runic-jl-a-code-formatter-with-rules-set-in-stone/) discussion.
 
+`runic -i *.jl` formats files given on the command line
+
+`runic -i src` formats files in the directory `src`.
 

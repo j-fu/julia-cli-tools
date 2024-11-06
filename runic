@@ -1,0 +1,12 @@
+#!/bin/sh
+# -*-Julia-*-
+#=
+jlversion=""
+if [[ "$1" == "+"* ]] ; then 
+   jlversion=$1
+   shift
+fi
+exec julia $jlversion --startup-file=no "$0" "$@"
+=#
+using Runic
+Runic.main(ARGS)
