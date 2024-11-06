@@ -1,0 +1,28 @@
+#!/bin/sh
+# -*-Julia-*-
+#=
+exec julia +release --startup-file=no "$0" "$@"
+=#
+using JuliaFormatter
+using ArgParse
+
+function main(args)
+    settings = ArgParseSettings()
+    settings.description = "Format Julia code"
+    settings.commands_are_required = false
+    settings.add_version = true
+    add_arg_table!(
+        settings,
+        "paths",
+        Dict(:help => "Paths to format", :required => true, :nargs => '*'),
+    )
+    parsed_args = parse_args(args, settings)
+    #    format_text("println(1+1)")
+    paths=abspath.(parsed_args["paths"])
+    println("formatting $(paths)... ")
+    format(paths; verbose = true, overwrite=true)
+    println("...done")
+end
+
+
+main(ARGS)
