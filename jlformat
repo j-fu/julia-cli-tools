@@ -1,7 +1,12 @@
 #!/bin/sh
 # -*-Julia-*-
 #=
-exec julia +release --startup-file=no "$0" "$@"
+jlversion=""
+if [[ "$1" == "+"* ]] ; then 
+   jlversion=$1
+   shift
+fi
+exec julia $jlversion --startup-file=no "$0" "$@"
 =#
 using JuliaFormatter
 using ArgParse
