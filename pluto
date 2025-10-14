@@ -102,6 +102,54 @@ function upgrade_notebook_manifest(notebook)
     Pkg.activate(thisproject)
 end
 
+"""
+    find_line_in_file(filepath::String, search_string::String)
+
+Find lines containing `search_string` in file.
+"""
+function find_lines_in_file(filepath::String, search_string::String)
+    found_lines = String[] # Initialize an array to store matching lines
+    open(filepath, "r") do io # Open the file in read mode
+        for line in eachline(io) # Iterate over each line
+            if occursin(search_string, line) # Check if the line contains the search string
+                push!(found_lines, line) # Add the matching line to the array
+            end
+        end
+    end
+    return found_lines # Return the array of found lines
+end
+
+"""
+    julia_versions_match(notebook; verbose = true)
+
+Check if julia major and minor versions match between running instance and notebook.
+"""
+function julia_versions_match(notebook; verbose = true)
+    lines=find_lines_in_file(notebook,"julia_version")
+    if length(lines) == 0
+        error("julia_version not found in notebook")
+    elseif length(lines)>1
+        error("julia_version in notebook ambiguous: $lines")
+    end
+    pversion=Meta.parse(lines[1])
+    julia_version=pversion.args[2] # avoid world age problem
+    nbversion=VersionNumber(julia_version)
+    
+    if verbose
+        @info "julia version running: $VERSION"
+        @info "julia version in notebook: $nbversion"
+    end
+    if nbversion.major!=VERSION.major
+        @warn "Major versions don't match: running: $(VERSION.major), notebook:  $(nbversion.major)"
+        return false
+    end
+    if nbversion.minor!=VERSION.minor
+        @warn "Minor versions don't match: running: $(VERSION.minor), notebook:  $(nbversion.minor)"
+        return false
+    end
+    return true
+end
+
 
 function main(args)
 
@@ -116,6 +164,7 @@ function main(args)
     add_arg_table(settings,
                   "notebook", Dict(:help => "Notebook to run",:required => true),
                   ["--no-browser", "-b"],   Dict(:help => "Don't launch browser",:action => :store_true),
+                  ["--ignore-version-mismatch", "-I"],   Dict(:help => "Ignore version mismatch between notebook and running instance",:action => :store_true),
                   ["--pkg-offline"],  Dict(:help => "Use offline Pkg",:action => :store_true),
                   ["--port"],   Dict(:help => "Port to be used",:arg_type=> Int),
                   ["--title"],   Dict(:help => "Set terminal window title to notebook name", :action => :store_true),
@@ -134,6 +183,8 @@ function main(args)
     if parsed_args["pkg-offline"]
         ENV["JULIA_PKG_OFFLINE"]="true"
     end
+
+    ignore_version_mismatch=parsed_args["ignore-version-mismatch"]
 
     if !parsed_args["no-develop"]
         ENV["PLUTO_DEVELOP"]="true"
@@ -163,14 +214,20 @@ function main(args)
         upgrade_notebook_manifest(notebook)
     else
         if isfile(notebook)
-            if parsed_args["title"]  
-                changetitle(basename(notebook))
+            match=julia_versions_match(notebook)
+            if match || ignore_version_mismatch
+                if parsed_args["title"]  
+                    changetitle(basename(notebook))
+                end
+                Pluto.run(;notebook,
+                          launch_browser=!parsed_args["no-browser"],
+                          auto_reload_from_file=!parsed_args["no-autoreload"],
+                          port,
+                          dismiss_motivational_quotes=true,
+                          sysimage=sysimage)
+            else
+                error("julia version mismatch between notebook and running instance")
             end
-            Pluto.run(;notebook,
-                      launch_browser=!parsed_args["no-browser"],
-                      auto_reload_from_file=!parsed_args["no-autoreload"],
-                      port,
-                      sysimage=sysimage)
         else
             error("Notebook $notebook not found")
         end
