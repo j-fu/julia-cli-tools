@@ -1,3 +1,6 @@
+Ok I guess this can be deprecated with Julia 1.12, because this can be superceded by Julia's app functionality.
+
+
 JULIA CLI TOOLS
 ===============
 Some useful command line interface tools for Julia
