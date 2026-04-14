@@ -127,7 +127,8 @@ Check if julia major and minor versions match between running instance and noteb
 function julia_versions_match(notebook; verbose = true)
     lines=find_lines_in_file(notebook,"julia_version")
     if length(lines) == 0
-        error("julia_version not found in notebook")
+        @info "julia_version not found in notebook"
+        return true
     elseif length(lines)>1
         error("julia_version in notebook ambiguous: $lines")
     end
@@ -164,14 +165,14 @@ function main(args)
     add_arg_table(settings,
                   "notebook", Dict(:help => "Notebook to run",:required => true),
                   ["--no-browser", "-b"],   Dict(:help => "Don't launch browser",:action => :store_true),
-                  ["--ignore-version-mismatch", "-I"],   Dict(:help => "Ignore version mismatch between notebook and running instance",:action => :store_true),
+                  ["--ignore-version-mismatch", "-I"],   Dict(:help => "Ignore julia version mismatch between notebook and running instance",:action => :store_true),
                   ["--pkg-offline"],  Dict(:help => "Use offline Pkg",:action => :store_true),
                   ["--port"],   Dict(:help => "Port to be used",:arg_type=> Int),
                   ["--title"],   Dict(:help => "Set terminal window title to notebook name", :action => :store_true),
                   ["--no-autoreload"],   Dict(:help => "Don't  run notebook with `auto_reload_from_file=true",:action => :store_true),
                   ["--no-develop"],   Dict(:help => "Don't set PKG_DEVELOP",:action => :store_true),
-                  ["--project"],   Dict(:help => "Evironment directory passed to nootebook as `ENV[PLUTO_PROJECT]`", :arg_type=>String),
-                  ["--update-all"],   Dict(:help => "Update all packges to their respective newest versions and update Julia to the version used to call pluto",:action => :store_true),
+                  ["--project"],   Dict(:help => "Evironment directory passed to notebook as `ENV[PLUTO_PROJECT]`", :arg_type=>String),
+                  ["--update-all"],   Dict(:help => "Update all packages to their respective newest versions and update Julia to the version used to call pluto",:action => :store_true),
                   ["--upgrade-manifest"],   Dict(:help => "Call Pkg.upgrade_manifest() on notebook environment",:action => :store_true),
                   )
 
